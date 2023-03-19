@@ -1,0 +1,13 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "DERO Simulator GUI",
+  "outputfilename": "DERO Simulator GUI",
+  "frontend:install": "yarn",
+  "frontend:build": "yarn build",
+  "frontend:dev:watcher": "yarn dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Evan Graïne",
+    "email": "evan.graine@gmail.com"
+  }
+}
