@@ -64,11 +64,14 @@ function Wallets() {
                     
                     {Object.keys(data.wallets).map((wallet, key) => <FlexboxGrid.Item key={key}>
                         <IconButton icon={<CreditCardPlusIcon />} style={styles.walletButton} onClick={() => {
-                            openWallets.push({
-                                eventKey: wallet,
-                                label: wallet[0].toUpperCase() + wallet.slice(1).replace('_', ' ')
-                            })
-                            setOpenWallets(openWallets)
+                            // If wallet_X is not open add it to openWallets
+                            if ( ! openWallets.some(item => item.eventKey === wallet) ) {
+                                openWallets.push({
+                                    eventKey: wallet,
+                                    label: wallet[0].toUpperCase() + wallet.slice(1).replace('_', ' ')
+                                })
+                                setOpenWallets(openWallets)
+                            }
                         }}>{wallet}</IconButton>
                     </FlexboxGrid.Item>)}
                 </FlexboxGrid>
