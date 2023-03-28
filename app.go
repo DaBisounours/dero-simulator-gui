@@ -1,14 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"os/exec"
 	"path"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -221,4 +225,159 @@ func (a *App) FetchSimulatorOutput() ([]string, error) {
 
 func (a *App) IsSimulatorRunning() bool {
 	return running
+}
+
+//
+// Simulator Wallets endpoints
+//
+
+// WalletInfo gets info about a wallet (GetAddress, GetBalance, GetTransfers)
+//
+// Parameters:
+//
+//	walletId string - the ID of the wallet to get info (e.g. "wallet_0")
+//
+// Returns:
+//
+//	map[string]interface{} - the response as a map
+func (a *App) WalletInfo(walletId string) map[string]interface{} {
+	walletInfo := make(map[string]interface{})
+
+	// Get address
+	res := a.WalletAction(walletId, "GetAddress", "")
+	address := res["result"].(map[string]interface{})["address"].(string)
+	walletInfo["address"] = address
+
+	// Get balance
+	res = a.WalletAction(walletId, "GetBalance", "")
+	balance := res["result"].(map[string]interface{})["balance"]
+	unlocked_balance := res["result"].(map[string]interface{})["unlocked_balance"]
+	walletInfo["balance"] = balance
+	walletInfo["unlocked_balance"] = unlocked_balance
+
+	// Get transfers
+	params := map[string]interface{}{
+		"out":      true,
+		"in":       true,
+		"coinbase": true,
+	}
+
+	res = a.WalletAction(walletId, "GetTransfers", params)
+	walletInfo["transfers"] = res
+
+	if DEBUG {
+		fmt.Println("walletInfo=", walletInfo)
+	}
+
+	return walletInfo
+}
+
+const WALLET_BASE_PORT = 30000
+const WALLET_IP = "http://127.0.0.1"
+const DEBUG = true
+
+// WalletAction performs an action on the specified wallet using the given API endpoint and parameters.
+//
+// Parameters:
+//
+//	walletId string - the ID of the wallet to perform the action on (e.g. "wallet_0")
+//	action string - the name of the action to perform (e.g. "GetBalance")
+//	params interface{} - optional parameters to include in the API request pass empty string to ignore (e.g. "" ["hi", "there"] {"transfers": [{ "destination": "deto1qyj4kx6azntn9psmg7dsfkuv9qs9xde0s94nmmhm2a0damffpm2zzqqcudacc","amount": 100000 }] } )
+//
+// Returns:
+//
+//	map[string]interface{} - the response from the API endpoint as a map
+func (a *App) WalletAction(walletId string, action string, params interface{}) map[string]interface{} {
+	// extract the numeric value from the string
+	valueStr := strings.TrimPrefix(walletId, "wallet_")
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		panic(err)
+	}
+	// Calculate the wallet port number
+	port := strconv.Itoa(WALLET_BASE_PORT + value)
+	// Set the endpoint URL
+	url := WALLET_IP + ":" + port + "/json_rpc"
+
+	// Define the API request
+	//action := "GetBalance"
+	//params := []interface{}{}
+	requestBody := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"id":      "1",
+		"method":  action,
+	}
+
+	if params != "" {
+		requestBody["params"] = params
+	}
+
+	// Send the request to the API endpoint
+	response, err := sendRequest(url, requestBody)
+	if err != nil {
+		panic(err)
+	}
+
+	// Print the result of the API endpoint
+	/*
+		switch action {
+		case "Echo":
+			fmt.Println(response["result"])
+		case "GetAddress":
+			fmt.Println(response["result"].(map[string]interface{})["address"])
+		case "GetBalance":
+			fmt.Println(response["result"].(map[string]interface{})["balance"])
+		default:
+			fmt.Println("Unknown action:", action)
+		}
+	*/
+
+	// Return response
+	return response
+}
+
+// Sends a POST request to the specified URL with the given request body
+// Returns the response body as a map[string]interface{}
+func sendRequest(url string, requestBody map[string]interface{}) (map[string]interface{}, error) {
+	if DEBUG {
+		fmt.Println("Wallet API url=", url, "request=", requestBody)
+	}
+	// Convert the request body to JSON format
+	requestBodyJson, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a new POST request with the request body
+	request, err := http.NewRequest("POST", url, bytes.NewBuffer(requestBodyJson))
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+
+	// Send the request and get the response
+	client := &http.Client{}
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+
+	// Read the response body
+	responseBody, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse the response body to a map[string]interface{}
+	var responseMap map[string]interface{}
+	err = json.Unmarshal(responseBody, &responseMap)
+	if err != nil {
+		return nil, err
+	}
+
+	if DEBUG {
+		fmt.Println("resposeMap=", responseMap)
+	}
+	return responseMap, nil
 }

@@ -13,7 +13,7 @@ import GearCircleIcon from '@rsuite/icons/legacy/GearCircle';
 import { FaPlay, FaStop } from "react-icons/fa";
 import MoreIcon from '@rsuite/icons/More';
 import { atom } from 'jotai/vanilla';
-import { useAtom } from 'jotai/react';
+import { useAtom, useAtomValue } from 'jotai/react';
 import { atomWithStorage } from 'jotai/vanilla/utils';
 import { atomWithImmer, useImmerAtom } from 'jotai-immer'
 
@@ -23,6 +23,8 @@ import Simulator from './routes/Simulator';
 import Wallets from './routes/Wallets';
 import Settings from './routes/Settings';
 import { ErrorBoundary } from 'react-error-boundary';
+
+import { WalletAction, WalletInfo } from "../wailsjs/go/main/App";
 
 export type Configuration = {
     Path: string;
@@ -54,8 +56,16 @@ export type AppData = {
         [id: string]: WalletData
     }
 }
+type Transaction = {
+    [key: string]: any;
+}
 type WalletData = {
-    address: string
+    apiUrl?: string,  // (e.g. "127.0.0.1:30001")
+    address?: string, // (e.g. "deto1qyre7td6x9r88y4cavdgpv6k7lvx6j39lfsx420hpvh3ydpcrtxrxqg8v8e3z")
+    balance?: number,
+    unlocked_balance?: number,
+    transactions?: Transaction[]
+    transfers?: Record<string, any>
 }
 
 const defaultData: AppData = {
@@ -70,14 +80,18 @@ export const configValidAtom = atom(false);
 
 export const logAtom = atom<string[]>([]);
 
-
+export const WALLETS_TOT = 22  // Tot num of wallets
+const WALLET_REFRESH = 10000 // Timeout for getWalletInfo
 
 function App() {
 
     const [config, setConfig] = useAtom(configAtom);
-    const [, setData] = useAtom(appDataAtom);
+    const [data, setData] = useAtom(appDataAtom);
     const [, setLog] = useAtom(logAtom);
     var [linesParsed, setLinesParsed] = useState(0);
+
+    
+
 
 
     /** LOAD CONFIG */
@@ -131,6 +145,7 @@ function App() {
 
     keepParsingLogOutput();
 
+    getWalletInfo();
 
     /** RENDER */
     const [location] = useLocation();
@@ -297,7 +312,7 @@ function App() {
                                 if (parsed && parsed.address) {
                                     const address = parsed.address;
                                     data.wallets[w] = {
-                                        address
+                                        apiUrl: address
                                     }
                                     setData(data);
                                 }
@@ -318,6 +333,40 @@ function App() {
         }
 
     }
+
+    // Get wallet info for all simulator wallets
+    function getWalletInfo() {
+        const state = useAtomValue(stateAtom);
+        //const data = useAtomValue(appDataAtom);
+        useEffect(() => {
+          const interval = setInterval(() => {
+            if (state === SimulatorState.Running && Object.keys(data.wallets).length === WALLETS_TOT) {
+                console.log('[getWalletInfo] Do wallet API CALL');
+                //console.log(data)
+                /*
+                // Check if we already got addresses for wallets
+                let getAddress = true
+                if (data.wallets['wallet_0'].hasOwnProperty('address')) { 
+                    getAddress = false
+                }
+                */
+                let newData = { ...data }
+                for (const walletId in data.wallets) {
+                    WalletInfo(walletId).then( (res) => {
+                        //console.log(walletId, "| res=", res)
+                        const newDataWallet = { ...newData.wallets[walletId], ...res}
+                        newData = { ...newData, wallets: { ...newData.wallets, [walletId]: newDataWallet} }
+                        //console.log("newData=", newData)
+                        setData(newData);
+                    })
+                }
+                
+            }
+          }, WALLET_REFRESH);
+          return () => clearInterval(interval);
+        }, [data, state]);
+    }
+      
 
 
 }
