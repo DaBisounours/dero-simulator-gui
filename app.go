@@ -274,7 +274,7 @@ func (a *App) WalletInfo(walletId string) map[string]interface{} {
 
 const WALLET_BASE_PORT = 30000
 const WALLET_IP = "http://127.0.0.1"
-const DEBUG = true
+const DEBUG = false
 
 // WalletAction performs an action on the specified wallet using the given API endpoint and parameters.
 //
