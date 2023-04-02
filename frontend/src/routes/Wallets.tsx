@@ -1,23 +1,32 @@
-import { FlexboxGrid, IconButton, Stack } from "rsuite"
+import { Button, FlexboxGrid, IconButton, Stack } from "rsuite"
 
 import Nav from '@rsuite/responsive-nav';
 import { useEffect, useState } from "react";
-import { useAtom } from "jotai";
+import { atom, useAtom } from "jotai";
 import { appDataAtom } from "../App";
 import { match } from "ts-pattern";
 
 import CloseIcon from '@rsuite/icons/Close';
 import CreditCardPlusIcon from '@rsuite/icons/CreditCardPlus';
 
+import { WalletAction } from "../../wailsjs/go/main/App";
+
+import TransferForm from "../components/TransferForm"
+
+import JSONViewer from 'react-json-view';
+import { formatDate, shortAddress, unitToDero } from "../utils";
+
+export const transferButtonStateAtom = atom(true)
+
 type Wallet = {
     eventKey: string,
     label: string
 }
 
-const DERO_UNIT = 100000
 
 function Wallets() {
-    var [data] = useAtom(appDataAtom)
+    var [data, setData] = useAtom(appDataAtom)
+    const [, setTransferButtonState] = useAtom(transferButtonStateAtom)
 
     var [openWallets, setOpenWallets] = useState<Wallet[]>([]);
     useEffect(() => {
@@ -29,14 +38,73 @@ function Wallets() {
         
     }, [data])
 
+    
+
+
+    // transfer dero to an address with parameters
+    function transferClickHandler(destination: string, amount: number)  {
+        // Disable Transfer button
+        setTransferButtonState(false)
+        const walletId = activeKey
+        const method = "transfer"
+        const ringsize =  2
+        const transferParam = {
+            "transfers": [{
+                //"destination": "deto1qyre7td6x9r88y4cavdgpv6k7lvx6j39lfsx420hpvh3ydpcrtxrxqg8v8e3z",
+                "destination": destination,
+                "amount": amount
+            }],
+            "ringsize": ringsize
+        }
+    
+        console.log("[transferClickHandler] request=", walletId, method, transferParam)
+        WalletAction(walletId, method, transferParam).then( (res) => {
+            console.log("[transferClickHandler] res=", res)
+
+            // TODO better here: get the actual date of transaction from simulator log
+            const date = new Date()
+            const formattedDate = formatDate(date.toString())
+            let logLine: string = ""
+            if (res?.error) {
+                const errorMessage = res?.error?.message ?? 'dero gui error'
+                logLine = formattedDate + ' | ERROR: ' + errorMessage
+                
+            } else {
+                const result = res?.result ?? 'dero gui error'
+                logLine = formattedDate + ' | SENT txid: ' + result?.txid
+                console.log(result, logLine)
+            }
+            
+            // Save logLine to global data
+            let newData = { ...data }
+            //console.log("[transferClickHandler] newData=", newData)
+            const lastWalletLog = newData.wallets[walletId]?.log ?? []
+            if ( Array.isArray(lastWalletLog) ) {
+                lastWalletLog.push(logLine)
+                //console.log("[transferClickHandler] log=", lastWalletLog, newData.wallets[walletId]?.log)
+                const newDataWallet = { ...newData.wallets[walletId], log: lastWalletLog }
+                newData = { ...newData, wallets: { ...newData.wallets, [walletId]: newDataWallet} }
+                setData(newData);
+            } else {
+                console.log("[transferClickHandler] wallet log error")    
+            }
+            //console.log("[transferClickHandler] newData=", newData)
+            setTransferButtonState(true)
+        })
+    }
+
     const [activeKey, setActiveKey] = useState<string>('status');
 
 
-    const styles = {
+    const styles : Record<string, React.CSSProperties> = {
         walletButton: { margin: '0.5em', },
         container: { padding: '1em' },
         closeTab: { padding: 0, marginLeft: '.5em', background: 'none' },
+        transferLog: { background: "rgb(26, 29, 36)", padding: "2em", margin: '1em', borderRadius: "4px", maxHeight: "300px", overflowY: "scroll"},
+        errorLog: { background: "rgb(26, 29, 36)", padding: "2em", margin: '1em', borderRadius: "4px", maxHeight: "200px", overflowY: "scroll"},
     }
+
+    
 
     return <Stack direction="column" alignItems="flex-start">
         <Stack.Item>
@@ -85,20 +153,63 @@ function Wallets() {
                     const address = data.wallets[activeKey]?.address ?? "Address not found"
                     const balance = data.wallets[activeKey]?.balance ?? 0;
                     const unlocked_balance = data.wallets[activeKey]?.unlocked_balance ?? 0;
-                    const balanceStr = `${balance/DERO_UNIT}/${unlocked_balance/DERO_UNIT}`;
+                    const balanceStr = `${unitToDero(balance)}/${unitToDero(unlocked_balance)}`;
                     const transfers_entries = data.wallets[activeKey]?.transfers?.result.entries ?? {}
-                    //const transfers = data.wallets[activeKey]?.transfers?.result.entries.map( (transfer: any) => <div>{<pre>{JSON.stringify(transfer, null, 2)}</pre>}</div> )
-                    const transfers = transfers_entries.map( (transfer: any) => <div>{<pre>{JSON.stringify(transfer, null, 2)}</pre>}</div> )
+                    
+                    //const transfers = transfers_entries.map( (transfer: any) => <div>{<pre>{JSON.stringify(transfer, null, 2)}</pre>}</div> )
+
+                    const transfers = transfers_entries.map( 
+                        (transfer: any) => {
+                            const formattedDate = formatDate(transfer?.time)
+                            let label1: string = "↩ Received"
+                            let label2: string = ""
+                            if (transfer?.coinbase) {
+                                label2 = "From Coinbase"
+                            } else if (transfer?.incoming) {
+                                label2 = "From " + shortAddress(transfer?.sender)
+                            } else if (transfer?.incoming === false) {
+                                label1 = "↪ Sent "
+                                label2 = "To " + shortAddress(transfer?.destination)
+                            }
+                            const name = `${formattedDate} | ${label1} ${unitToDero(transfer?.amount)} DERO ${label2}`
+                            return (
+                                <div key={name}><JSONViewer 
+                                    src={transfer} 
+                                    theme="ashes" 
+                                    displayDataTypes={false}
+                                    displayObjectSize={false}
+                                    collapsed={true}
+                                    name={name} />
+                                </div>
+                            )
+                        } 
+                    )
+                    
+                    const viewLog = data.wallets[activeKey]?.log ?? []
+                    const logs = viewLog.map(
+                        (log: string) => {
+                            return <div key={log?.slice(0,20) + Math.random()}>{log?.length > 70 ? log?.slice(0, 70) + '...' : log }</div>
+                        }
+                    )
                     return (
                         <>
                         <div style={{ textAlign: "left" }}>
                             <div>Address: {address}</div>
                             <div>Balance: {balanceStr} DERO</div>
-                            <div>Transactions</div>
-                            <div style={{ background: "rgb(26, 29, 36)", padding: "2em", margin: '1em', borderRadius: "4px", maxHeight: "500px", overflowY: "scroll"}}>
-                                { transfers }
-                                
-                            
+                            <div>
+                                <TransferForm balance={unitToDero(balance)} transferClickHandler={transferClickHandler} />
+                            </div>
+                            <div>
+                                <div>Transfers</div>
+                                <div style={styles.transferLog}>
+                                    { transfers }
+                                </div>
+                            </div>
+                            <div>
+                                <div>Log</div>
+                                <div style={styles.errorLog}>
+                                    { logs }
+                                </div>
                             </div>
                         </div>
                         </>
@@ -111,3 +222,7 @@ function Wallets() {
 }
 
 export default Wallets
+
+
+/**
+ */

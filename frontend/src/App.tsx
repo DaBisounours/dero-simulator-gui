@@ -66,6 +66,7 @@ type WalletData = {
     unlocked_balance?: number,
     transactions?: Transaction[]
     transfers?: Record<string, any>
+    log?: Record<string, any>
 }
 
 const defaultData: AppData = {
@@ -82,6 +83,10 @@ export const logAtom = atom<string[]>([]);
 
 export const WALLETS_TOT = 22  // Tot num of wallets
 const WALLET_REFRESH = 10000 // Timeout for getWalletInfo
+
+
+
+
 
 function App() {
 
