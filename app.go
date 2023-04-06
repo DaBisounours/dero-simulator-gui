@@ -300,8 +300,6 @@ func (a *App) WalletAction(walletId string, action string, params interface{}) m
 	url := WALLET_IP + ":" + port + "/json_rpc"
 
 	// Define the API request
-	//action := "GetBalance"
-	//params := []interface{}{}
 	requestBody := map[string]interface{}{
 		"jsonrpc": "2.0",
 		"id":      "1",
@@ -334,6 +332,26 @@ func (a *App) WalletAction(walletId string, action string, params interface{}) m
 
 	// Return response
 	return response
+}
+
+func (a *App) DaemonGetInfo() map[string]interface{} {
+
+	url := "http://127.0.0.1:20000" + "/json_rpc"
+
+	// Define the API request
+	requestBody := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"id":      "1",
+		"method":  "DERO.GetInfo",
+	}
+	//fmt.Println(url, requestBody)
+	// Send the request to the API endpoint
+	res, err := sendRequest(url, requestBody)
+	if err != nil {
+		panic(err)
+	}
+
+	return res
 }
 
 // Sends a POST request to the specified URL with the given request body
