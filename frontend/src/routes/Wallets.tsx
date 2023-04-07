@@ -1,4 +1,4 @@
-import { Button, FlexboxGrid, IconButton, Stack } from "rsuite"
+import { Button, FlexboxGrid, IconButton, Stack, Tooltip, Whisper } from "rsuite"
 
 import Nav from '@rsuite/responsive-nav';
 import { useEffect, useState } from "react";
@@ -15,6 +15,7 @@ import TransferForm from "../components/TransferForm"
 
 import JSONViewer from 'react-json-view';
 import { formatDate, shortAddress, unitToDero } from "../utils";
+import React from "react";
 
 export const transferButtonStateAtom = atom(true)
 
@@ -25,7 +26,7 @@ type Wallet = {
 
 
 function Wallets() {
-    var [data, setData] = useAtom(appDataAtom)
+    const [data, setData] = useAtom(appDataAtom)
     const [, setTransferButtonState] = useAtom(transferButtonStateAtom)
 
     var [openWallets, setOpenWallets] = useState<Wallet[]>([]);
@@ -50,24 +51,24 @@ function Wallets() {
         const ringsize =  2
         const transferParam = {
             "transfers": [{
-                //"destination": "deto1qyre7td6x9r88y4cavdgpv6k7lvx6j39lfsx420hpvh3ydpcrtxrxqg8v8e3z",
-                "destination": destination,
+                "destination": destination, // (e.g. deto1qyre7td6x9r88y4cavdgpv6k7lvx6j39lfsx420hpvh3ydpcrtxrxqg8v8e3z )
                 "amount": amount
             }],
             "ringsize": ringsize
         }
     
-        console.log("[transferClickHandler] request=", walletId, method, transferParam)
+        //console.log("[transferClickHandler] request=", walletId, method, transferParam)
         WalletAction(walletId, method, transferParam).then( (res) => {
-            console.log("[transferClickHandler] res=", res)
+            //console.log("[transferClickHandler] res=", res)
 
             // TODO better here: get the actual date of transaction from simulator log
             const date = new Date()
             const formattedDate = formatDate(date.toString())
             let logLine: string = ""
             if (res?.error) {
-                const errorMessage = res?.error?.message ?? 'dero gui error'
-                logLine = formattedDate + ' | ERROR: ' + errorMessage
+                // Don't need it anymore cause I'm getting the error msg from the simulator log parse in App.tsx
+                //const errorMessage = res?.error?.message ?? 'dero gui error'
+                //logLine = formattedDate + ' | ERROR: ' + errorMessage
                 
             } else {
                 const result = res?.result ?? 'dero gui error'
@@ -76,19 +77,21 @@ function Wallets() {
             }
             
             // Save logLine to global data
-            let newData = { ...data }
-            //console.log("[transferClickHandler] newData=", newData)
-            const lastWalletLog = newData.wallets[walletId]?.log ?? []
-            if ( Array.isArray(lastWalletLog) ) {
-                lastWalletLog.push(logLine)
-                //console.log("[transferClickHandler] log=", lastWalletLog, newData.wallets[walletId]?.log)
-                const newDataWallet = { ...newData.wallets[walletId], log: lastWalletLog }
-                newData = { ...newData, wallets: { ...newData.wallets, [walletId]: newDataWallet} }
-                setData(newData);
-            } else {
-                console.log("[transferClickHandler] wallet log error")    
+            try {
+                if ( logLine !== "") {
+                    if (data.wallets[walletId]?.log) {
+                        // @ts-ignore
+                        data.wallets[walletId].log.push(logLine) 
+                    } else {
+                        data.wallets[walletId].log = [logLine];
+                    }
+                    setData(data)
+                }
+            } catch (error) {
+                console.log("[transferClickHandler] ERROR: ", error)
             }
-            //console.log("[transferClickHandler] newData=", newData)
+            
+            
             setTransferButtonState(true)
         })
     }
@@ -156,8 +159,7 @@ function Wallets() {
                     const balanceStr = `${unitToDero(balance)}/${unitToDero(unlocked_balance)}`;
                     const transfers_entries = data.wallets[activeKey]?.transfers?.result.entries ?? {}
                     
-                    //const transfers = transfers_entries.map( (transfer: any) => <div>{<pre>{JSON.stringify(transfer, null, 2)}</pre>}</div> )
-
+                    //console.log("transfers_entries=", transfers_entries)
                     const transfers = transfers_entries.map( 
                         (transfer: any) => {
                             const formattedDate = formatDate(transfer?.time)
@@ -187,8 +189,29 @@ function Wallets() {
                     
                     const viewLog = data.wallets[activeKey]?.log ?? []
                     const logs = viewLog.map(
-                        (log: string) => {
-                            return <div key={log?.slice(0,20) + Math.random()}>{log?.length > 70 ? log?.slice(0, 70) + '...' : log }</div>
+                        (log: string, index: number) => {
+                            const key = index
+                            const logShortLine: React.ReactElement<{key: string}> = 
+                                <div key={key}>{log?.length > 70 ? log?.slice(0, 70) + '...' : log }</div>
+                            if ( log?.length > 70 ) {
+                                const tooltip = (
+                                    <Tooltip>
+                                      {log}
+                                    </Tooltip>
+                                );
+                                
+                                return <Whisper
+                                    key={key}
+                                    placement="top"
+                                    controlId="control-id-context-menu"
+                                    trigger="hover"
+                                    speaker={tooltip}>
+                                        {logShortLine}
+                                    </Whisper>
+                            } else {
+                                return logShortLine
+                            }
+                            
                         }
                     )
                     return (

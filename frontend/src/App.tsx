@@ -24,7 +24,7 @@ import Wallets from './routes/Wallets';
 import Settings from './routes/Settings';
 import { ErrorBoundary } from 'react-error-boundary';
 
-import { WalletAction, WalletInfo } from "../wailsjs/go/main/App";
+import { DaemonGetInfo, WalletInfo } from "../wailsjs/go/main/App";
 
 export type Configuration = {
     Path: string;
@@ -37,19 +37,56 @@ export enum SimulatorState {
     Running,
 }
 
-
+export enum GetInfoState {
+    Stopped,
+    Running,
+}
 
 export const stateAtom = atomWithStorage('state', SimulatorState.Stopped);
 
 
 export type AppContextData = {
-    OS?: string,
-    ARCH?: string,
-    GOMAXPROCS?: number,
-    Version?: string,
-    MODE?: string,
-    "Daemon data directory"?: string
-}
+    OS?: string;
+    ARCH?: string;
+    GOMAXPROCS?: number;
+    Version?: string;
+    MODE?: string;
+    "Daemon data directory"?: string;
+    alt_blocks_count?: number;
+    averageblocktime50?: number;
+    blocks_count?: number;
+    connected_miners?: number;
+    difficulty?: number;
+    dynamic_fee_per_kb?: number;
+    grey_peerlist_size?: number;
+    hashrate_1d?: number;
+    hashrate_1hr?: number;
+    hashrate_7d?: number;
+    height?: number;
+    incoming_connections_count?: number;
+    median_block_size?: number;
+    miniblocks_accepted_count?: number;
+    miniblocks_in_memory?: number;
+    miniblocks_rejected_count?: number;
+    mining_velocity?: number;
+    network?: string;
+    outgoing_connections_count?: number;
+    stableheight?: number;
+    status?: string;
+    target?: number;
+    target_height?: number;
+    testnet?: boolean | string;
+    top_block_hash?: string;
+    topoheight?: number;
+    total_supply?: number;
+    treehash?: string;
+    tx_count?: number;
+    tx_pool_size?: number;
+    uptime?: number | string;
+    version?: string;
+    white_peerlist_size?: number;
+};
+  
 export type AppData = {
     context: AppContextData,
     wallets: {
@@ -82,7 +119,8 @@ export const configValidAtom = atom(false);
 export const logAtom = atom<string[]>([]);
 
 export const WALLETS_TOT = 22  // Tot num of wallets
-const WALLET_REFRESH = 10000 // Timeout for getWalletInfo
+//const WALLET_REFRESH = 7000 // Timeout for getWalletInfo
+const DAEMON_REFRESH = 2000 // Timeout for getDaemonInfo
 
 
 
@@ -150,8 +188,9 @@ function App() {
 
     keepParsingLogOutput();
 
-    getWalletInfo();
-
+    // Get Daemon and wallet info every DAEMON_REFRESH
+    getDaemonInfo()
+    
     /** RENDER */
     const [location] = useLocation();
 
@@ -284,7 +323,7 @@ function App() {
                 ).split('\t');
 
             const [date, level, location, message, jsonData, ...other] = content;
-            console.log({ date, level, location, message, jsonData, other });
+            console.log("[parseLine]", { date, level, location, message, jsonData, other });
 
             if (level === 'INFO') {
                 match(location)
@@ -311,18 +350,21 @@ function App() {
                         }
                     })
                     .when((loc) => loc.startsWith('wallet'), (w) => {
+                        //console.log("[parseLine] ---------> ", jsonData, message)
                         if (message.toLowerCase().includes('starting')) {
                             try {
                                 const parsed = JSON.parse(jsonData);
                                 if (parsed && parsed.address) {
                                     const address = parsed.address;
+                                    
                                     data.wallets[w] = {
                                         apiUrl: address
                                     }
+
                                     setData(data);
                                 }
                             } catch (error) {
-                                console.error('Failed to parse wallet data');
+                                console.error('Failed to parse wallet data:', error);
                             }
 
                         } else if (message.toLowerCase().includes('shutdown')) {
@@ -334,46 +376,73 @@ function App() {
                     .otherwise(_ => {
                         //console.warn("Line not parsed.", { date, level, location, message, data });
                     })
+            } else if (level === 'ERROR') {
+                match(location)
+                    .when((loc) => loc.startsWith('wallet'), (w) => {
+                        try {
+                            const parsed = JSON.parse(jsonData);
+                            if (parsed && parsed.error) {
+                                const error = parsed.error
+                                const logData = date + ' | ' + message + ': ' + error
+                                if (data.wallets[w]?.log) {
+                                    // @ts-ignore
+                                    data.wallets[w].log.push(logData) 
+                                } else {
+                                    data.wallets[w].log = [logData];
+                                }
+                                setData(data);
+                                //console.log("[parseLine] level === ERROR", data.wallets)
+                            }
+                            
+                            
+                        } catch (error) {
+                            console.error("[parseLine]", error);
+                        }
+                        
+
+                    })
+                    .otherwise(_ => {
+                        //console.warn("Line not parsed.", { date, level, location, message, data });
+                    })
             }
         }
 
     }
 
-    // Get wallet info for all simulator wallets
-    function getWalletInfo() {
-        const state = useAtomValue(stateAtom);
-        //const data = useAtomValue(appDataAtom);
+    
+    // Get daemon info
+    function getDaemonInfo() {
         useEffect(() => {
-          const interval = setInterval(() => {
-            if (state === SimulatorState.Running && Object.keys(data.wallets).length === WALLETS_TOT) {
-                console.log('[getWalletInfo] Do wallet API CALL');
-                //console.log(data)
-                /*
-                // Check if we already got addresses for wallets
-                let getAddress = true
-                if (data.wallets['wallet_0'].hasOwnProperty('address')) { 
-                    getAddress = false
-                }
-                */
-                let newData = { ...data }
-                for (const walletId in data.wallets) {
-                    WalletInfo(walletId).then( (res) => {
-                        //console.log(walletId, "| res=", res)
-                        const newDataWallet = { ...newData.wallets[walletId], ...res}
-                        newData = { ...newData, wallets: { ...newData.wallets, [walletId]: newDataWallet} }
-                        //console.log("newData=", newData)
-                        setData(newData);
-                    })
-                }
-                
+            const interval = setInterval(() => {
+            if (state === SimulatorState.Running) {
+                console.log('[getDaemonInfo] Do daemon info API CALL');
+                DaemonGetInfo().then( (res) => {
+                    data.context = { ...data.context, ...res.result }
+                    
+                    // Get wallet info for all simulator wallets
+                    if (state === SimulatorState.Running && Object.keys(data.wallets).length === WALLETS_TOT) {
+                        for (const walletId in data.wallets) {
+                            
+                            WalletInfo(walletId).then( (res) => {
+                                //console.log(walletId, "| res=", res)
+                                const newDataWallet = { ...data.wallets[walletId], ...res}
+                                data.wallets[walletId] = newDataWallet
+                                //setData(newData);
+                            })
+                            
+                        }
+                    }
+                })
+                .catch((error) => {
+                    console.error(error);
+                });
             }
-          }, WALLET_REFRESH);
+          }, DAEMON_REFRESH);
           return () => clearInterval(interval);
-        }, [data, state]);
+        }, [data.context, state]);
     }
-      
 
-
+    
 }
 
 
