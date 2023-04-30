@@ -6,6 +6,7 @@ import { useAtom } from "jotai";
 import { deroToUnit, shortAddress } from '../utils';
 
 import { transferButtonStateAtom } from '../routes/Wallets'
+import WalletPicker from './WalletPicker';
 
 
 type TransferFormData = {
@@ -17,16 +18,8 @@ type TransferFormData = {
 const TransferForm = (props: any) => {
   const [appData] = useAtom(appDataAtom)
   const [transferButtonState, ] = useAtom(transferButtonStateAtom)
-  // Get an array of wallet IDs
-  const walletIds = Object.keys(appData.wallets);
-  // Map over the wallet IDs and render some information about each wallet
   
-  const walletListInput = walletIds.map((walletId) => {
-    const walletData = appData.wallets[walletId];
-    const label = 'w' + walletId.slice(6).padEnd(4, ' ') + '' + shortAddress(walletData.address ?? '')
-    //const label = 'w' + walletId.slice(6).padEnd(4, ' ') + '' + walletData.address
-    return { label: label, value: walletData.address}
-  });
+  
   //console.log('HERE')
   const [formData, setFormData] = useState<TransferFormData>({ addressTo: '', amount: 0, fees: 0 });
   const [amountColor, setAmountColor] = useState("inherit")
@@ -57,13 +50,17 @@ const TransferForm = (props: any) => {
       <Form.Group style={{ marginBottom: '10px'}}>
         <Form.ControlLabel style={{ marginBottom: '0px' }}>Address To:</Form.ControlLabel>
         <Form.Control style={{ width: '520px' }} name="addressTo" value={formData.addressTo} onChange={(value) => handleInputChange('addressTo', value)} />        
-        <InputPicker 
-          name="addressToPicker" size="xs" style={{ marginLeft: '4px', width: 80 }} data={walletListInput} value={formData.addressTo}  
-          onChange={(value) => setFormData({
-            ...formData,
-            ['addressTo']: value
-          })} 
-        />
+        <WalletPicker 
+          value={formData.addressTo} 
+          onChange={ (walletId) => {
+            if (walletId === null) {
+              walletId = ""
+            } //else {
+              //[walletId, walletAddress] = value.split('|')
+            //}
+            setFormData({ ...formData, ['addressTo']: appData.wallets[walletId]?.address ?? ""})
+          }}
+          />
         <Form.HelpText tooltip>Enter the recipient's address</Form.HelpText>
       </Form.Group>
     </Form>
@@ -100,6 +97,21 @@ const TransferForm = (props: any) => {
 export default TransferForm;
 /*
 
+// Get an array of wallet IDs
+  const walletIds = Object.keys(appData.wallets);
 
+  // Map over the wallet IDs and render some information about each wallet
+  const walletListInput = walletIds.map((walletId) => {
+    const walletData = appData.wallets[walletId];
+    const label = 'w' + walletId.slice(6).padEnd(4, ' ') + '' + shortAddress(walletData.address ?? '')
+    return { label: label, value: walletData.address}
+  });
+
+<InputPicker 
+          name="addressToPicker" size="xs" style={{ marginLeft: '4px', width: 80 }} data={walletListInput} value={formData.addressTo}  
+          onChange={ (value) => {
+            if (value === null) value = ""
+            setFormData({ ...formData, ['addressTo']: value })}
+          } 
 
 */

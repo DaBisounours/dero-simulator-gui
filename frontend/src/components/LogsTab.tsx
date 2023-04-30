@@ -3,9 +3,12 @@ import Convert from 'ansi-to-html';
 import { useAtom } from 'jotai';
 import { match } from 'ts-pattern';
 import { SimulatorState, logAtom } from '../App';
+import { useEffect, useRef, useState } from 'react';
 
-export function LogsTab({ state, configValid }: { state: SimulatorState, configValid: boolean }) {
+export function LogsTab({ state, configValid, maxHeight, scrollToBottomDelay = 0 }: { state: SimulatorState, configValid: boolean, maxHeight?: string, scrollToBottomDelay?: number }) {
     const [log] = useAtom(logAtom);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const [isScrolledToBottom, setIsScrolledToBottom] = useState(true);
 
     const convert = new Convert({
         colors: {
@@ -28,9 +31,47 @@ export function LogsTab({ state, configValid }: { state: SimulatorState, configV
         }
     });
 
+    useEffect(() => {
+        const scrollContainer = scrollContainerRef.current;
+        if (scrollContainer) {
+            const handleScroll = () => {
+                const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+                const atBottom = scrollTop + clientHeight === scrollHeight;
+                setIsScrolledToBottom(atBottom);
+            };
+
+            scrollContainer.addEventListener("scroll", handleScroll);
+            return () => scrollContainer.removeEventListener("scroll", handleScroll);
+        }
+    }, [scrollContainerRef]);
+
+    useEffect(() => {
+        if (isScrolledToBottom) {
+            const scrollContainer = scrollContainerRef.current;
+            if (scrollContainer) {
+                const scrollToBottom = () => {
+                    scrollContainer.scrollTop = scrollContainer.scrollHeight;
+                };
+
+                if (scrollToBottomDelay) {
+                    setTimeout(scrollToBottom, scrollToBottomDelay);
+                } else {
+                    scrollToBottom();
+                }
+            }
+        }
+    }, [isScrolledToBottom, scrollToBottomDelay, log, scrollContainerRef]);
+
+    useEffect(() => {
+        const scrollContainer = scrollContainerRef.current;
+        if (scrollContainer) {
+            scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        }
+    }, []);
+
     const allLogs =
-        <div style={{ background: "rgb(26, 29, 36)", padding: "2em", margin: '1em', borderRadius: "4px", maxHeight: "500px", overflowY: "scroll"}}>
-            {log.map((line, l) => <div key={l}>
+        <div ref={scrollContainerRef} style={{ background: "rgb(26, 29, 36)", padding: "2em", margin: '1em', borderRadius: "4px", maxHeight: maxHeight ?? "500px", overflowY: "scroll"}}>
+            {log && log.map((line, l) => <div key={l}>
                 {parse(convert.toHtml(line))}
             </div>)}
         </div>
@@ -50,9 +91,9 @@ export function LogsTab({ state, configValid }: { state: SimulatorState, configV
                 }
             })
             .otherwise(_ => <div style={{ textAlign: "left" }}>
-                <div>Simulator started.</div>
                 {allLogs}
             </div>)
+
         }
     </>
 }

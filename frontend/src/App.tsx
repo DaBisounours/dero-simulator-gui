@@ -25,6 +25,7 @@ import Settings from './routes/Settings';
 import { ErrorBoundary } from 'react-error-boundary';
 
 import { DaemonGetInfo, WalletInfo } from "../wailsjs/go/main/App";
+import { smartContractExamples } from './smartContractExamples';
 
 export type Configuration = {
     Path: string;
@@ -87,30 +88,54 @@ export type AppContextData = {
     white_peerlist_size?: number;
 };
   
+
+export type smartContracts = {
+    [id: string]: SmartContractData
+}
+
 export type AppData = {
     context: AppContextData,
     wallets: {
         [id: string]: WalletData
-    }
+    }, 
+    smartContracts: smartContracts
+
 }
+
+
+
+
+// Not used
 type Transaction = {
     [key: string]: any;
 }
+
 type WalletData = {
     apiUrl?: string,  // (e.g. "127.0.0.1:30001")
     address?: string, // (e.g. "deto1qyre7td6x9r88y4cavdgpv6k7lvx6j39lfsx420hpvh3ydpcrtxrxqg8v8e3z")
     balance?: number,
     unlocked_balance?: number,
-    transactions?: Transaction[]
+    transactions?: Transaction[] // Not Used
     transfers?: Record<string, any>
     log?: Record<string, any>
 }
 
+export type SmartContractData = {
+    name?: string,
+    code?: string,  
+    scid?: string, 
+}
+
 const defaultData: AppData = {
     context: {},
-    wallets: {}
+    wallets: {},
+    smartContracts: {}
 }
 export const appDataAtom = atom<AppData>(defaultData);
+
+
+//const defaultSmartContractData: SmartContractData = {} // X27
+//export const smartContractAtom = atom<SmartContractData>(defaultSmartContractData) // X27
 
 
 export const configAtom = atomWithStorage<Configuration>('config', { Path: "" });
@@ -125,6 +150,16 @@ const DAEMON_REFRESH = 2000 // Timeout for getDaemonInfo
 
 
 
+type SetStateAction<T> = T | ((curr: T) => T);
+export const updateData = (callback: (oldData: AppData, setData: (newData: SetStateAction<AppData>) => void) => void) => {
+    const [, setData] = useAtom(appDataAtom);
+    console.warn("[updateData]")
+    setData((oldData) => {
+      callback(oldData, setData);
+      return oldData;
+    });
+};
+
 
 function App() {
 
@@ -132,13 +167,40 @@ function App() {
     const [data, setData] = useAtom(appDataAtom);
     const [, setLog] = useAtom(logAtom);
     var [linesParsed, setLinesParsed] = useState(0);
+    //const [smartContracts, setSmartContract] = useAtom(smartContractAtom) // X27
 
     
 
-
-
+    const loadSmartContractExamples = () => {
+        //const [data, setData] = useAtom(appDataAtom);
+      
+        //useEffect(() => {
+          if (Object.keys(data.smartContracts).length === 0) {
+            const newSmartContracts = smartContractExamples.reduce(
+              (acc, { name, code }): Record<string, SmartContractData> => ({
+                ...acc,
+                [name]: {
+                  name,
+                  code,
+                  scid: "",
+                },
+              }),
+              {}
+            );
+      
+            setData((prevData: AppData) => ({
+              ...prevData,
+              smartContracts: newSmartContracts,
+            }));
+          }
+        //}, []);
+    };
+      
+        
     /** LOAD CONFIG */
     loadConfig(setConfig)
+
+    
 
     /** LOGIC */
     const isConfigValid = checkConfiguration(config);
@@ -169,7 +231,9 @@ function App() {
             .with(SimulatorState.Stopped, async _ => {
                 // Start the simulator
                 await StartSimulator(config.Path)
-                setData(defaultData)
+                setData(defaultData) // X77
+                // Load smart contract examples
+                loadSmartContractExamples()
                 setLog([])
                 setState(SimulatorState.Starting)
 
@@ -300,7 +364,7 @@ function App() {
 
     function keepParsingLogOutput() {
 
-        var [state, setState] = useAtom(stateAtom);
+        var [state, setState] = useAtom(stateAtom); // X77
         var [data, setData] = useAtom(appDataAtom)
 
         const [log] = useAtom(logAtom);
@@ -341,7 +405,7 @@ function App() {
                                 const parsedData = JSON.parse(jsonData);
                                 console.warn({ parsedData });
                                 data = { ...data, context: { ...data.context, ...parsedData } }
-                                setData(data);
+                                setData(data); // X77
                             } catch (error) {
                                 console.error('Failed to parse derod data');
 
@@ -361,7 +425,8 @@ function App() {
                                         apiUrl: address
                                     }
 
-                                    setData(data);
+                                    setData(data); // X77
+                                    
                                 }
                             } catch (error) {
                                 console.error('Failed to parse wallet data:', error);
@@ -369,7 +434,7 @@ function App() {
 
                         } else if (message.toLowerCase().includes('shutdown')) {
                             delete data.wallets[w];
-                            setData(data);
+                            setData(data); // X77
                         }
 
                     })
@@ -390,7 +455,7 @@ function App() {
                                 } else {
                                     data.wallets[w].log = [logData];
                                 }
-                                setData(data);
+                                setData(data); // X77
                                 //console.log("[parseLine] level === ERROR", data.wallets)
                             }
                             
@@ -437,6 +502,7 @@ function App() {
                     console.error(error);
                 });
             }
+            
           }, DAEMON_REFRESH);
           return () => clearInterval(interval);
         }, [data.context, state]);
@@ -464,16 +530,18 @@ function checkConfiguration(config: Configuration) {
 
 function loadConfig(setConfig: ((config: Configuration) => void)) {
     useEffect(() => {
+        //console.warn("loadConfig")
         ReadConfig()
             .then((returnValues: string[]) => {
                 let [config_str, isFileRead, error] = returnValues;
-
+                
                 if (error == "") {
                     try {
                         let c = JSON.parse(config_str) as Configuration;
                         if (c != null) {
                             setConfig(c)
                         }
+                        
                     } catch (error) {
                         console.error('Failed to parse config');
 
@@ -482,6 +550,7 @@ function loadConfig(setConfig: ((config: Configuration) => void)) {
                 } else {
                     console.error(error);
                 }
+                //loadSmartContracts()
 
             })
 

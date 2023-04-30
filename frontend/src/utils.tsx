@@ -96,3 +96,35 @@ export function formatKeys(obj: { [key: string]: any }): { [key: string]: any } 
 
   return formattedObj;
 }
+
+
+/**
+ * Encodes a string to hexadecimal format.
+ * @param {string} str - The string to be encoded.
+ * @returns {string} The hexadecimal representation of the input string.
+ */
+export function encodeHex(str: string): string {
+  return Array.prototype.map.call(str, (char: string) => {
+    return ('0' + char.charCodeAt(0).toString(16)).slice(-2);
+  }).join('');
+}
+
+/**
+ * Decodes a hexadecimal string to its original string format.
+ * @param {string} hex - The hexadecimal string to be decoded.
+ * @returns {string} The original string representation of the input hexadecimal string.
+ */
+export function decodeHex(hex: string): string {
+  //console.log("[decodeHex] hex=", hex)
+  const hexRegex = /^[0-9a-fA-F]+$/;
+  const isHex = hexRegex.test(hex);
+  if (isHex) {
+    return hex.replace(/../g, (pair: string) => {
+      return String.fromCharCode(parseInt(pair, 16));
+    });
+  } else {
+    return hex
+  }
+}
+
+
