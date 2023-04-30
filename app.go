@@ -76,6 +76,9 @@ func initConfig() (string, error) {
 	return string(jsonConfig), nil
 }
 
+const daemonUrl = "http://127.0.0.1"
+const daemonPort = "20000"
+
 /* Config enpoints */
 
 const CONFIG_PATH = "config.toml"
@@ -334,9 +337,69 @@ func (a *App) WalletAction(walletId string, action string, params interface{}) m
 	return response
 }
 
+// InstallSmartContract installs the given smart contract on the specified wallet.
+//
+// Parameters:
+//
+//	walletId string - the ID of the wallet to install the smart contract on (e.g. "wallet_0")
+//	contractContent string - the content of the smart contract to install
+//
+// Returns:
+//
+//	map[string]interface{} - a map containing the transaction ID of the installation (scID)
+//	error - an error if the smart contract content is empty or the installation fails
+func (a *App) InstallSmartContract(walletId string, contractContent string) (map[string]interface{}, error) {
+
+	if contractContent == "" {
+		return nil, errors.New("contract content cannot be empty")
+	}
+
+	type InstallSCResponse struct {
+		TxID string `json:"txid"`
+	}
+
+	// extract the numeric value from the string
+	valueStr := strings.TrimPrefix(walletId, "wallet_")
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		panic(err)
+	}
+	// Calculate the wallet port number
+	port := strconv.Itoa(WALLET_BASE_PORT + value)
+	// Set the endpoint URL
+	url := WALLET_IP + ":" + port + "/install_sc"
+
+	reqBody := bytes.NewBuffer([]byte(contractContent))
+	resp, err := http.Post(url, "application/octet-stream", reqBody)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to install smart contract: %s", resp.Status)
+	}
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var installSCResponse InstallSCResponse
+	err = json.Unmarshal(respBody, &installSCResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		"txid": installSCResponse.TxID,
+	}, nil
+}
+
 func (a *App) DaemonGetInfo() map[string]interface{} {
 
-	url := "http://127.0.0.1:20000" + "/json_rpc"
+	//url := "http://127.0.0.1:20000" + "/json_rpc"
+	url := daemonUrl + ":" + daemonPort + "/json_rpc"
 
 	// Define the API request
 	requestBody := map[string]interface{}{
@@ -346,6 +409,25 @@ func (a *App) DaemonGetInfo() map[string]interface{} {
 	}
 	//fmt.Println(url, requestBody)
 	// Send the request to the API endpoint
+	res, err := sendRequest(url, requestBody)
+	if err != nil {
+		panic(err)
+	}
+
+	return res
+}
+
+func (a *App) DaemonAction(action string, params interface{}) map[string]interface{} {
+	url := daemonUrl + ":" + daemonPort + "/json_rpc"
+
+	// Define the API request
+	requestBody := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"id":      "1",
+		"method":  action,
+		"params":  params,
+	}
+
 	res, err := sendRequest(url, requestBody)
 	if err != nil {
 		panic(err)

@@ -165,8 +165,8 @@ function Wallets() {
                             const formattedDate = formatDate(transfer?.time)
                             let label1: string = "↩ Received"
                             let label2: string = ""
-                            if (transfer?.coinbase) {
-                                label2 = "From Coinbase"
+                            if (transfer?.coinbase ) {
+                                label2 = "Coinbase=true"
                             } else if (transfer?.incoming) {
                                 label2 = "From " + shortAddress(transfer?.sender)
                             } else if (transfer?.incoming === false) {

@@ -7,6 +7,8 @@ import { useState } from "react";
 
 import { LogsTab } from "../components/LogsTab";
 import { StatusTab } from "../components/StatusTab";
+import { DebugTab } from "../components/DebugTab";
+import { InstallSC } from "../components/InstallScTab";
 
 function Simulator() {
     const [state] = useAtom(stateAtom)
@@ -16,11 +18,15 @@ function Simulator() {
     enum Tab {
         Status = 'Status',
         Logs = 'Logs',
+        InstallSC = 'Install SC',
+        Debug = 'Debug'
     }
     const [tab, setTab] = useState(Tab.Logs);
     const tabs: { [t in Tab]: JSX.Element } = {
         [Tab.Status]: <StatusTab state={state} configValid={configValid} />,
         [Tab.Logs]: <LogsTab state={state} configValid={configValid} />,
+        [Tab.InstallSC]: <InstallSC state={state} configValid={configValid} />,
+        [Tab.Debug]: <DebugTab state={state} configValid={configValid} />,
     }
     return <Stack direction="column" alignItems="flex-start">
         <Stack.Item>
