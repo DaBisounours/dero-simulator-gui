@@ -11,6 +11,7 @@
   "dependencies": {
     "@rsuite/responsive-nav": "^5.0.1",
     "ansi-to-html": "^0.7.2",
+    "dvm-utils": "^1.0.0",
     "html-react-parser": "^3.0.12",
     "immer": "^9.0.19",
     "jotai": "^2.0.3",

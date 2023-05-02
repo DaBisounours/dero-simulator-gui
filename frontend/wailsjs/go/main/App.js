@@ -6,8 +6,20 @@ export function CheckFileExists(arg1) {
   return window['go']['main']['App']['CheckFileExists'](arg1);
 }
 
+export function DaemonAction(arg1, arg2) {
+  return window['go']['main']['App']['DaemonAction'](arg1, arg2);
+}
+
+export function DaemonGetInfo() {
+  return window['go']['main']['App']['DaemonGetInfo']();
+}
+
 export function FetchSimulatorOutput() {
   return window['go']['main']['App']['FetchSimulatorOutput']();
+}
+
+export function InstallSmartContract(arg1, arg2) {
+  return window['go']['main']['App']['InstallSmartContract'](arg1, arg2);
 }
 
 export function IsSimulatorRunning() {
@@ -28,6 +40,14 @@ export function StartSimulator(arg1) {
 
 export function StopSimulator() {
   return window['go']['main']['App']['StopSimulator']();
+}
+
+export function WalletAction(arg1, arg2, arg3) {
+  return window['go']['main']['App']['WalletAction'](arg1, arg2, arg3);
+}
+
+export function WalletInfo(arg1) {
+  return window['go']['main']['App']['WalletInfo'](arg1);
 }
 
 export function WriteConfig(arg1) {

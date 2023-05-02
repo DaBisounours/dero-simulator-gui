@@ -3,7 +3,13 @@
 
 export function CheckFileExists(arg1:string):Promise<boolean>;
 
+export function DaemonAction(arg1:string,arg2:any):Promise<{[key: string]: any}>;
+
+export function DaemonGetInfo():Promise<{[key: string]: any}>;
+
 export function FetchSimulatorOutput():Promise<Array<string>>;
+
+export function InstallSmartContract(arg1:string,arg2:string):Promise<{[key: string]: any}>;
 
 export function IsSimulatorRunning():Promise<boolean>;
 
@@ -14,5 +20,9 @@ export function ReadConfig():Promise<Array<string>>;
 export function StartSimulator(arg1:string):Promise<void>;
 
 export function StopSimulator():Promise<void>;
+
+export function WalletAction(arg1:string,arg2:string,arg3:any):Promise<{[key: string]: any}>;
+
+export function WalletInfo(arg1:string):Promise<{[key: string]: any}>;
 
 export function WriteConfig(arg1:string):Promise<void>;
